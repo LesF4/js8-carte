@@ -1,0 +1,43 @@
+JS8 Carte — carte des stations JS8Call
+=======================================
+
+Auteur : F4MAJ / Jean-Bernard — licence MIT
+Inspiré du « MultiDigi Tracker » de Nicolas F4LPS (logiciel MultiDigi) : l'idée et l'agencement
+de l'écran viennent de son travail. Le code de JS8 Carte a été écrit séparément. Merci Nicolas !
+
+
+RÉGLAGE À FAIRE UNE FOIS DANS JS8CALL
+-------------------------------------
+1. File > Settings > Reporting :
+   - cocher « Enable TCP Server API » (port 2242) ;
+   - si un autre programme utilise déjà l'API (par exemple JS8toHRD), mettre
+     « Maximum TCP connections » à 2.
+2. Redémarrer JS8Call, puis lancer JS8 Carte.
+
+JS8 Carte ne fait que lire : elle ne commande jamais l'émission de JS8Call.
+
+
+CE QUE MONTRE JS8 CARTE
+-----------------------
+- Les stations entendues depuis l'ouverture (CQ, HB, réponses à ton HB « T'entend »).
+- « En QSO » et un trait animé vers la station avec qui tu échanges.
+- La maison jaune = ta station (locator lu dans JS8Call).
+- Conditions solaires (hamqsl.com), journal des QSO, filtres durée et bande.
+
+
+FICHE QRZ.COM (FACULTATIF)
+--------------------------
+Avec un abonnement QRZ.com XML : bouton « Réglages », indicatif + mot de passe QRZ.
+Le mot de passe est chiffré par Windows et ne quitte ton PC que vers QRZ.com.
+Les stations sans locator sont alors placées sur la carte grâce à leur fiche.
+
+
+OÙ SONT MES DONNÉES ?
+---------------------
+%APPDATA%\JS8Carte (réglages, carnet des locators, journal, cache QRZ).
+Elles sont conservées si tu désinstalles.
+
+
+Windows SmartScreen au premier lancement : « Informations complémentaires »
+puis « Exécuter quand même » (application non signée).
+Nécessite Windows 10 ou 11 avec Microsoft Edge WebView2 (déjà présent sur Windows 11).

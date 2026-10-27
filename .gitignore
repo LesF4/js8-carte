@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+# captures de travail (indicatifs réels entendus) et icône régénérée par build.py
+packaging/*.png
+packaging/revue-esthetique/
+packaging/icon.ico

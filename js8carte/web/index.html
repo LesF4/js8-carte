@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>JS8 Carte</title>
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<style>
+  :root {
+    --bg: #0a0f1a; --panel: #162133; --panel2: #22314a; --line: #2c3d5a;
+    --fg: #e6edf3; --dim: #93a3bd; --accent: #4fc3f7; --btn: #2a3f61; --btn-on: #35507a;
+    --spot: #8fa3c2; --hb: #64748b; --cq: #00e676; --qso: #ef5350; --ack: #b388ff;
+    --sel: #ffffff; --contact: #ff9100; --me: #ffd54f;
+    --gap: 10px; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+               font: 13px "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  button { font: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  body { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
+
+  /* ---------- barre du haut */
+  header { display: flex; align-items: center; gap: 18px; padding: 10px 14px 8px; }
+  header h1 { margin: 0; font-size: 17px; color: var(--accent); font-weight: 700; }
+  #me { color: var(--me); font-weight: 700; font-size: 14px; }
+  #freq { font-size: 14px; }
+  header .spacer { flex: 1; }
+  label.field { color: var(--dim); display: flex; align-items: center; gap: 6px; }
+  select { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 7px;
+           padding: 5px 8px; font: inherit; }
+  .btn { background: var(--btn); color: var(--fg); border: 0; border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+  .btn:hover { background: var(--btn-on); }
+  .btn.primary { background: var(--accent); color: #0a0f1a; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+
+  /* ---------- zone principale */
+  main { display: grid; grid-template-columns: 1fr minmax(600px, 31%); gap: var(--gap);
+         padding: 0 14px; min-height: 0; }
+  #left { display: grid; grid-template-rows: 1fr auto; gap: var(--gap); min-height: 0; }
+  #right { display: grid; grid-template-rows: auto 1fr; gap: var(--gap); min-height: 0; }
+  .card { background: var(--panel); border-radius: var(--radius); }
+
+  /* ---------- carte */
+  #mapwrap { position: relative; border-radius: var(--radius); overflow: hidden; min-height: 0; }
+  #map { position: absolute; inset: 0; background: #0e1626; }
+  .leaflet-container { background: #0e1626; font: inherit; }
+  #styles { position: absolute; z-index: 1000; top: 10px; right: 10px; display: flex; gap: 4px; padding: 4px;
+            background: #162133e6; border-radius: 9px; }
+  #styles button { background: transparent; color: var(--dim); border: 0; border-radius: 6px; padding: 5px 10px;
+                   cursor: pointer; }
+  #styles button:hover { color: var(--fg); background: #ffffff14; }
+  #styles button[aria-pressed="true"] { background: #4fc3f733; color: var(--fg); }
+  .tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85) saturate(0.6); }
+  .leaflet-shadow-pane { pointer-events: none; }
+  .leaflet-control-attribution { background: #0a0f1aa6 !important; color: var(--dim) !important; }
+  .leaflet-control-attribution a { color: var(--dim) !important; }
+  .leaflet-bar a { background: var(--panel); color: var(--fg); border-color: var(--line); }
+  .leaflet-bar a:hover { background: var(--panel2); color: #fff; }
+
+  .st { position: relative; white-space: nowrap; transform: translate(-9px, -9px); display: flex;
+        align-items: center; gap: 5px; cursor: pointer; }
+  .st .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--c); border: 2px solid #fff;
+             display: grid; place-items: center; font: 700 9px "Segoe UI"; color: #0a0f1a; box-shadow: 0 1px 3px #0008; }
+  .st .lbl { background: #0a0f1ae6; color: #fff; border: 1px solid var(--c); border-radius: 6px;
+             padding: 1px 6px; font: 600 11px "Segoe UI"; }
+  .st.HB .dot, .st.QSO .dot { color: #fff; }
+  .st.sel { transform: translate(-11px, -11px); }
+  .st.sel .dot { width: 22px; height: 22px; border: 3px solid #0a0f1a; outline: 2px solid #fff; }
+  .st.contact { transform: translate(-13px, -13px); }
+  .st.contact .dot { width: 26px; height: 26px; box-shadow: 0 0 0 6px #ff910055, 0 1px 4px #000a; }
+  .st.contact .lbl { font-size: 12px; border-width: 2px; padding: 2px 8px; }
+  .me { transform: translate(-15px, -15px); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .me svg { filter: drop-shadow(0 1px 2px #000a); }
+  .me .lbl { background: var(--me); color: #1a1300; border-radius: 6px; padding: 2px 8px; font: 700 12px "Segoe UI"; }
+  .qso-line { stroke-dasharray: 2 14; stroke-linecap: round; animation: flow 0.9s linear infinite; }
+  .qso-line.rx { animation-direction: reverse; }
+  .qso-base { opacity: .45; }
+  .sel-line { stroke-dasharray: 6 6; }
+  @keyframes flow { to { stroke-dashoffset: -16; } }
+  @media (prefers-reduced-motion: reduce) { .qso-line { animation: none; stroke-dasharray: none; } }
+
+  /* ---------- bande « QSO en cours » */
+  #band { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: flex-start; padding: 12px 16px; min-height: 132px; }
+  #fhead { width: 250px; flex: none; }
+  #photo { width: 140px; height: 104px; border-radius: 8px; object-fit: cover; background: var(--panel2); display: none; }
+  #photo.on { display: block; }
+  #band h2 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+  .badge { background: var(--contact); color: #10233f; border-radius: 5px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+  #fcall { font-size: 26px; font-weight: 700; color: var(--sel); line-height: 1.15; margin-top: 2px; }
+  #fcall.contact { color: var(--contact); }
+  #fname { font-size: 14px; font-weight: 600; }
+  .muted { color: var(--dim); }
+  #fields { display: grid; grid-template-columns: repeat(5, max-content); gap: 8px 24px; white-space: nowrap; }
+  #fields div span { display: block; color: var(--dim); font-size: 12px; }
+  #fields div b { font-size: 13px; }
+  #fmsgbox { flex: 1 1 220px; min-width: 220px; }
+  #fmsgbox .muted { font-size: 12px; }
+  #fmsg { margin: 2px 0 10px; max-width: 46ch; overflow-wrap: anywhere; }
+  #band.empty #photo, #band.empty #fields, #band.empty #fmsgbox, #band.empty #fcall, #band.empty #fname { display: none; }
+
+  /* ---------- colonne de droite */
+  #solar { padding: 12px 16px; }
+  #solar h2, .tabs { margin: 0 0 8px; font-size: 14px; }
+  #solar dl { display: grid; grid-template-columns: repeat(3, auto 1fr); gap: 4px 10px; margin: 0; }
+  #solar dt { color: var(--dim); }
+  #solar dd { margin: 0; color: var(--accent); font-weight: 700; }
+  #solar .upd { margin-top: 6px; font-size: 12px; }
+  #lists { display: grid; grid-template-rows: auto 1fr; min-height: 0; overflow: hidden; }
+  .tabs { display: flex; gap: 4px; padding: 8px 8px 0; margin: 0; }
+  .tabs button { background: transparent; color: var(--dim); border: 0; border-radius: 8px 8px 0 0;
+                 padding: 8px 14px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--panel2); color: var(--fg); }
+  .tabpanel { overflow: auto; min-height: 0; background: var(--panel2); border-radius: 0 0 var(--radius) var(--radius);
+              margin: 0 8px 8px; position: relative; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { position: sticky; top: 0; background: #1c2a41; color: var(--dim); font-weight: 600; text-align: left;
+       padding: 7px 8px; z-index: 1; }
+  td { padding: 5px 8px; border-top: 1px solid #ffffff0a; white-space: nowrap; }
+  th.n, td.n { text-align: right; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: #ffffff0d; }
+  tr.CQ td { color: var(--cq); } tr.Ack td { color: var(--ack); } tr.QSO td { color: var(--qso); }
+  tr.HB td { color: var(--dim); }
+  tr.contact td { background: var(--contact); color: #10233f; font-weight: 600; }
+  tr.sel td { background: #1f4e79; }
+  .empty-msg { position: absolute; inset: 60px 20px auto; text-align: center; color: var(--dim); line-height: 1.6; }
+
+  /* ---------- barre d'état */
+  footer { display: flex; align-items: center; gap: 14px; padding: 8px 14px 10px; color: var(--dim); }
+  #dot { width: 10px; height: 10px; border-radius: 50%; background: var(--hb); }
+  #dot.on { background: var(--accent); }
+  #status.on { color: var(--fg); }
+  #legend { margin-left: auto; display: flex; gap: 14px; }
+  #legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+                         margin-right: 6px; background: var(--c); vertical-align: 0; }
+
+  /* ---------- réglages */
+  dialog { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 12px;
+           padding: 20px 22px; width: 440px; }
+  dialog::backdrop { background: #000a; }
+  dialog h2 { margin: 0 0 4px; font-size: 16px; }
+  dialog p { margin: 0 0 14px; color: var(--dim); line-height: 1.5; }
+  dialog label { display: grid; gap: 4px; margin-bottom: 10px; color: var(--dim); }
+  dialog input { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 7px;
+                 padding: 8px 10px; font: 14px "Segoe UI"; }
+  #sresult { min-height: 1.4em; margin: 4px 0 12px; font-weight: 600; }
+  #sresult.ok { color: var(--cq); } #sresult.ko { color: var(--qso); }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>JS8 Carte</h1>
+  <span id="me"></span>
+  <span id="freq"></span>
+  <span class="spacer"></span>
+  <label class="field">Depuis <select id="fmin"></select></label>
+  <label class="field">Bande <select id="fband"></select></label>
+  <button class="btn" id="bsettings">Réglages</button>
+  <button class="btn" id="bme">Centrer sur ma station</button>
+</header>
+
+<main>
+  <section id="left">
+    <div id="mapwrap">
+      <div id="map"></div>
+      <div id="styles" role="group" aria-label="Fond de carte">
+        <button data-style="sombre">Sombre</button>
+        <button data-style="sombrefr">Sombre FR</button>
+        <button data-style="clair">Clair</button>
+      </div>
+    </div>
+    <section id="band" class="card empty" aria-live="polite">
+      <img id="photo" alt="">
+      <div id="fhead">
+        <h2>QSO en cours <span id="fbadge" class="badge" hidden>En QSO</span></h2>
+        <div id="fcall"></div>
+        <div id="fname"></div>
+        <div id="fplace" class="muted"></div>
+        <div id="fstate" class="muted">Clique un indicatif dans JS8Call ou sur la carte : sa position, sa distance
+          et son azimut s'afficheront ici.</div>
+      </div>
+      <div id="fields"></div>
+      <div id="fmsgbox">
+        <div class="muted">Dernier message</div>
+        <div id="fmsg"></div>
+        <button class="btn primary" id="bfocus">Centrer la carte</button>
+      </div>
+    </section>
+  </section>
+
+  <section id="right">
+    <section id="solar" class="card">
+      <h2>Conditions solaires</h2>
+      <dl>
+        <dt>SFI</dt><dd id="s-sfi">…</dd><dt>A-index</dt><dd id="s-a">…</dd><dt>K-index</dt><dd id="s-k">…</dd>
+        <dt>Taches</dt><dd id="s-spots">…</dd><dt>X-ray</dt><dd id="s-xray">…</dd><dt>MUF</dt><dd id="s-muf">…</dd>
+      </dl>
+      <div class="upd muted" id="s-upd"></div>
+    </section>
+    <section id="lists" class="card">
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" aria-controls="p-act" id="t-act">Activité en direct</button>
+        <button role="tab" aria-selected="false" aria-controls="p-qso" id="t-qso">Journal QSO</button>
+      </div>
+      <div class="tabpanel" id="p-act" role="tabpanel" aria-labelledby="t-act">
+        <table><thead><tr><th>Heure</th><th>Type</th><th>Indicatif</th><th class="n">SNR</th><th>Bande</th>
+          <th>Locator</th><th class="n">Distance</th></tr></thead><tbody id="tact"></tbody></table>
+        <div class="empty-msg" id="eact">Aucune station entendue depuis l'ouverture.<br>
+          Elles apparaîtront ici dès que JS8Call les décodera.</div>
+      </div>
+      <div class="tabpanel" id="p-qso" role="tabpanel" aria-labelledby="t-qso" hidden>
+        <table><thead><tr><th>Date / heure</th><th>Indicatif</th><th>Bande</th><th class="n">Envoyé</th>
+          <th class="n">Reçu</th><th>Locator</th><th class="n">Distance</th></tr></thead><tbody id="tqso"></tbody></table>
+        <div class="empty-msg" id="eqso">Aucun QSO loggé pour l'instant.<br>
+          Ceux que tu loggues dans JS8Call apparaîtront ici.</div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<footer>
+  <span id="dot"></span><span id="status">Connexion à JS8Call…</span>
+  <div id="legend">
+    <span style="--c:var(--cq)">Appel CQ</span><span style="--c:var(--spot)">Entendue</span>
+    <span style="--c:var(--hb)">Balise HB</span><span style="--c:var(--ack)">T'entend</span>
+    <span style="--c:var(--qso)">Déjà contacté</span><span style="--c:var(--sel)">Sélection</span>
+    <span style="--c:var(--contact)">En QSO</span>
+  </div>
+</footer>
+
+<dialog id="settings">
+  <form method="dialog" id="sform">
+    <h2>Fiche QRZ.com</h2>
+    <p>Abonnement XML nécessaire. Le mot de passe est chiffré par Windows : seule ta session peut le relire.</p>
+    <label>Indicatif QRZ <input id="suser" autocomplete="username" spellcheck="false"></label>
+    <label>Mot de passe <input id="spass" type="password" autocomplete="current-password"></label>
+    <div id="shint" class="muted"></div>
+    <div id="sresult" role="status"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="stest">Tester la connexion</button>
+      <button type="button" class="btn" id="scancel">Annuler</button>
+      <button type="submit" class="btn primary" id="ssave">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="leaflet/leaflet.js"></script>
+<script>
+"use strict";
+const api = () => (window.pywebview && window.pywebview.api) || null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+/* ---------- carte */
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
+const OSM_FR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France';
+const STYLES = {
+  sombre: [ESRI + "World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", ESRI + "World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+           "Fond &copy; Esri, HERE, Garmin, &copy; OpenStreetMap", ""],
+  sombrefr: ["https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", null, OSM_FR, "tiles-dark"],
+  clair: ["https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", null, OSM_FR, ""],
+};
+const COLORS = {Spot: "var(--spot)", Message: "var(--spot)", HB: "var(--hb)", CQ: "var(--cq)", QSO: "var(--qso)",
+                Ack: "var(--ack)", sel: "var(--sel)", contact: "var(--contact)"};
+const GLYPH = {CQ: "CQ", HB: "♥", QSO: "✓", Ack: "↩"};
+const ORDER = {HB: 0, Spot: 1, Message: 1, QSO: 2, Ack: 3, CQ: 4, sel: 5, contact: 6};
+
+const map = L.map("map", {zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 110, wheelDebounceTime: 25,
+                          minZoom: 2, maxZoom: 17, worldCopyJump: true}).setView([47.7, 7.4], 4);
+let tiles = [];
+function setStyle(name) {
+  tiles.forEach(t => map.removeLayer(t));
+  const [url, labels, attr, cls] = STYLES[name];
+  const o = {maxZoom: 19, maxNativeZoom: 16, keepBuffer: 6, updateWhenZooming: false};
+  tiles = [L.tileLayer(url, {...o, attribution: attr, subdomains: "abc", className: cls}).addTo(map)];
+  if (labels) tiles.push(L.tileLayer(labels, {...o, pane: "shadowPane"}).addTo(map));
+  document.querySelectorAll("#styles button").forEach(b => b.setAttribute("aria-pressed", b.dataset.style === name));
+  try { localStorage.setItem("js8carte.style", name); } catch (e) {}
+}
+document.querySelectorAll("#styles button").forEach(b => b.onclick = () => setStyle(b.dataset.style));
+let savedStyle = "sombre";
+try { savedStyle = localStorage.getItem("js8carte.style") || "sombre"; } catch (e) {}
+setStyle(STYLES[savedStyle] ? savedStyle : "sombre");
+
+const markers = new Map();
+let meMarker = null, meKey = "", lines = [], lastContact = "", state = null, selCall = "";
+const icon = html => L.divIcon({className: "", html, iconSize: null});
+const stationHtml = s => `<div class="st ${s.kind}" style="--c:${COLORS[s.kind]}"><span class="dot">${GLYPH[s.kind] || ""}</span>` +
+  `<span class="lbl">${esc((s.kind === "contact" ? "EN QSO  " : "") + s.call + (s.extra ? "  " + s.extra : ""))}</span></div>`;
+const homeHtml = call => `<div class="me"><svg width="30" height="30" viewBox="0 0 30 30">
+  <rect x="20.5" y="4" width="4" height="8" fill="#ffd54f" stroke="#6b5200" stroke-width="1.5"/>
+  <path fill="#ffd54f" stroke="#6b5200" stroke-width="1.5" stroke-linejoin="round"
+    d="M15 2 L29 14.5 H25 V28 H18 V20 H12 V28 H5 V14.5 H1 Z"/></svg>
+  <span class="lbl">${esc(call)}</span></div>`;
+
+function select(call) {
+  selCall = call || "";
+  const a = api(); if (a) a.select(selCall);
+  if (state) { state.focus = state.focus && state.focus.call === selCall ? state.focus : null; }
+}
+function flyTo(pos) {
+  if (state && state.me) map.flyToBounds(L.latLngBounds([state.me, pos]).pad(0.25), {duration: 1.0, maxZoom: 7});
+  else map.flyTo(pos, 6, {duration: 1.0});
+}
+map.on("click", () => select(""));
+
+function drawMap(s) {
+  if (s.me) {
+    const key = s.header.my_call + s.me.join();
+    if (key !== meKey) {
+      if (meMarker) map.removeLayer(meMarker);
+      meMarker = L.marker(s.me, {icon: icon(homeHtml(s.header.my_call)), zIndexOffset: 2000, keyboard: false}).addTo(map);
+      if (!meKey) map.setView(s.me, 4);
+      meKey = key;
+    }
+  }
+  const seen = new Set();
+  for (const st of s.stations) {
+    if (st.lat == null) continue;
+    seen.add(st.call);
+    const html = stationHtml(st);
+    let m = markers.get(st.call);
+    if (!m) {
+      m = L.marker([st.lat, st.lon], {icon: icon(html), title: st.call, riseOnHover: true});
+      m.on("click", e => { L.DomEvent.stopPropagation(e); select(st.call); });
+      m.addTo(map); m._html = html; markers.set(st.call, m);
+    } else {
+      m.setLatLng([st.lat, st.lon]);
+      if (m._html !== html) { m.setIcon(icon(html)); m._html = html; }
+    }
+    m.setZIndexOffset((ORDER[st.kind] || 0) * 100);
+  }
+  for (const [call, m] of markers) if (!seen.has(call)) { map.removeLayer(m); markers.delete(call); }
+
+  lines.forEach(l => map.removeLayer(l)); lines = [];
+  const t = s.target;
+  if (s.me && t) {
+    const pts = [s.me, t.pos];
+    if (t.contact) {
+      lines.push(L.polyline(pts, {color: "#ff9100", weight: 4, className: "qso-base", interactive: false}).addTo(map));
+      lines.push(L.polyline(pts, {color: "#ffe0b2", weight: 5, interactive: false,
+                                  className: "qso-line " + (s.dir === "rx" ? "rx" : "tx")}).addTo(map));
+      if (t.call !== lastContact) flyTo(t.pos);
+      lastContact = t.call;
+    } else {
+      lines.push(L.polyline(pts, {color: "#ffffff", weight: 2, opacity: .7, className: "sel-line", interactive: false}).addTo(map));
+      lastContact = "";
+    }
+  } else lastContact = "";
+}
+
+/* ---------- bande « QSO en cours » */
+const FIELDS = [["grid", "Locator"], ["dist", "Distance"], ["az", "Azimut"], ["snr", "SNR"], ["band", "Bande"],
+                ["heard", "Elle te reçoit"], ["last", "Dernière écoute"], ["worked", "Déjà contacté"], ["qsl", "QSL"]];
+$("fields").innerHTML = FIELDS.map(([k, t]) => `<div><span>${t}</span><b id="f-${k}"></b></div>`).join("");
+let photoCall = "";
+function drawFocus(f) {
+  const band = $("band");
+  band.classList.toggle("empty", !f);
+  $("fbadge").hidden = !(f && f.contact);
+  if (!f) {
+    $("fplace").textContent = "";
+    $("fstate").textContent = "Clique un indicatif dans JS8Call ou sur la carte : sa position, sa distance et son azimut s'afficheront ici.";
+    photoCall = ""; $("photo").classList.remove("on");
+    return;
+  }
+  $("fcall").textContent = f.call;
+  $("fcall").classList.toggle("contact", f.contact);
+  $("fname").textContent = f.qrz ? f.qrz.name : "";
+  $("fplace").textContent = f.qrz ? f.qrz.place : f.note;
+  $("fstate").textContent = f.state;
+  for (const [k] of FIELDS) $("f-" + k).textContent = f.rows[k] || "—";
+  $("f-worked").style.color = f.rows.worked.startsWith("oui") ? "var(--qso)" : "";
+  $("f-heard").style.color = f.rows.heard ? "var(--ack)" : "";
+  $("fmsg").textContent = f.msg || "—";
+  const want = f.qrz && f.qrz.photo ? f.qrz.photo : "";
+  if (want !== photoCall) {
+    photoCall = want;
+    $("photo").classList.remove("on");
+    if (want && api()) api().photo(want).then(uri => {
+      if (uri && photoCall === want) { $("photo").src = uri; $("photo").alt = "Photo de " + f.call; $("photo").classList.add("on"); }
+    });
+  }
+}
+$("bfocus").onclick = () => { if (state && state.target) flyTo(state.target.pos); };
+$("bme").onclick = () => { if (state && state.me) map.flyTo(state.me, 5, {duration: 1.0}); };
+
+/* ---------- tableaux */
+function drawTables(s) {
+  const focus = s.focus ? s.focus.call : "";
+  $("tact").innerHTML = s.stations.map(st => `<tr class="${st.kind === "contact" ? "contact" : (st.call === focus ? "sel" : st.base)}"
+      tabindex="0" data-call="${esc(st.call)}"><td>${st.time}</td><td>${esc(st.label)}</td><td>${esc(st.call)}</td>
+      <td class="n">${st.snr}</td><td>${st.band}</td><td>${esc(st.grid)}</td><td class="n">${st.dist}</td></tr>`).join("");
+  $("eact").hidden = s.stations.length > 0;
+  $("tqso").innerHTML = s.journal.map(q => `<tr tabindex="0" data-call="${esc(q.call)}"><td>${q.when}</td><td>${esc(q.call)}</td>
+      <td>${q.band}</td><td class="n">${esc(q.sent)}</td><td class="n">${esc(q.recv)}</td><td>${esc(q.grid)}</td>
+      <td class="n">${q.dist}</td></tr>`).join("");
+  $("eqso").hidden = s.journal.length > 0;
+}
+for (const id of ["tact", "tqso"]) {
+  const pick = tr => { if (!tr) return; select(tr.dataset.call);
+    const st = state && state.stations.find(x => x.call === tr.dataset.call);
+    if (st && st.lat != null) flyTo([st.lat, st.lon]); };
+  $(id).addEventListener("click", e => pick(e.target.closest("tr")));
+  $(id).addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(e.target.closest("tr")); } });
+}
+for (const [tab, panel, other, otherPanel] of [["t-act", "p-act", "t-qso", "p-qso"], ["t-qso", "p-qso", "t-act", "p-act"]])
+  $(tab).onclick = () => { $(tab).setAttribute("aria-selected", "true"); $(other).setAttribute("aria-selected", "false");
+                           $(panel).hidden = false; $(otherPanel).hidden = true; };
+
+/* ---------- filtres */
+let filtersReady = false;
+function drawFilters(f) {
+  if (filtersReady) return;
+  $("fmin").innerHTML = f.durations.map(d => `<option value="${d}">${d} min</option>`).join("");
+  $("fband").innerHTML = `<option value="all">Toutes</option>` + f.bands.map(b => `<option>${b}</option>`).join("");
+  $("fmin").value = f.minutes; $("fband").value = f.band || "all";
+  const send = () => { const a = api(); if (a) a.set_filters(+$("fmin").value, $("fband").value); };
+  $("fmin").onchange = send; $("fband").onchange = send;
+  filtersReady = true;
+}
+
+/* ---------- réglages */
+$("bsettings").onclick = async () => {
+  const a = api(); const s = a ? await a.get_settings() : {qrz_user: "", has_password: false};
+  $("suser").value = s.qrz_user || ""; $("spass").value = "";
+  $("shint").textContent = s.has_password ? "Mot de passe déjà enregistré : laisse vide pour le garder." : "";
+  $("sresult").textContent = ""; $("sresult").className = "";
+  $("settings").showModal(); $("suser").focus();
+};
+$("scancel").onclick = () => $("settings").close();
+$("stest").onclick = async () => {
+  const a = api(); if (!a) return;
+  $("sresult").textContent = "Connexion à QRZ.com…"; $("sresult").className = "";
+  const r = await a.test_qrz($("suser").value, $("spass").value);
+  $("sresult").textContent = r.message; $("sresult").className = r.ok ? "ok" : "ko";
+};
+$("sform").onsubmit = async e => {
+  e.preventDefault();
+  const a = api(); if (a) await a.save_settings($("suser").value, $("spass").value);
+  $("settings").close();
+};
+
+/* ---------- mise à jour reçue de Python */
+window.update = function (s) {
+  state = s;
+  $("me").textContent = s.header.my_call ? s.header.my_call + "  " + s.header.my_grid : "";
+  $("freq").textContent = s.header.freq;
+  $("dot").classList.toggle("on", s.status.connected);
+  $("status").classList.toggle("on", s.status.connected);
+  $("status").textContent = s.status.text;
+  const sol = s.solar || {};
+  for (const k of ["sfi", "a", "k", "spots", "xray", "muf"]) $("s-" + k).textContent = sol[k] || "…";
+  $("s-upd").textContent = sol.updated ? "Actualisé : " + sol.updated : "";
+  drawFilters(s.filters);
+  drawMap(s); drawFocus(s.focus); drawTables(s);
+};
+
+/* ---------- démonstration sans JS8Call : index.html?demo */
+if (location.search.includes("demo")) {
+  const row = (call, lat, lon, kind, label, extra = "", snr = "-8", grid = "", dist = "") =>
+    ({call, lat, lon, kind, base: kind, label, extra, time: "07:12", snr, band: "40m", grid, dist});
+  window.update({
+    header: {my_call: "F4MAJ", my_grid: "JN37QS", freq: "7.078 MHz · 40m"},
+    status: {connected: true, text: "Connecté à JS8Call"},
+    filters: {minutes: 30, band: "", durations: [15, 30, 60, 120, 240], bands: ["160m", "80m", "40m", "20m"]},
+    me: [47.77, 7.38], dir: "rx",
+    stations: [row("IC8BNR", 40.73, 13.9, "contact", "En QSO", "", "-8", "JN70BQ", "952 km"),
+               row("IU2ITE", 45.5, 9.0, "CQ", "Appel CQ", "", "+3", "JN45", "281 km"),
+               row("M0IQF", 51.5, -1.0, "Ack", "T'entend (-1) à 07:12", "-1", "-3", "IO91", "731 km"),
+               row("SP5ABC", 52.2, 21.0, "Ack", "T'entend (-12) à 07:12", "-12", "-18", "KO02", "1101 km"),
+               row("SM6TWY", 57.7, 12.0, "HB", "Balise HB", "", "-6", "JO57", "1108 km"),
+               row("WD5EED", 34.8, -91.9, "QSO", "Déjà contacté", "", "", "EM44XT", "7719 km"),
+               row("HB9ZZ", 47.5, 8.6, "Spot", "Entendue", "", "-14", "JN47", "125 km"),
+               row("OH3FZQ", null, null, "Spot", "Entendue", "", "-22")],
+    target: {call: "IC8BNR", pos: [40.73, 13.9], contact: true},
+    focus: {call: "IC8BNR", contact: true, state: "en communication avec toi", note: "",
+            qrz: {name: "Giovanni Rossi", place: "Ischia, Italy", qsl: "LoTW · eQSL", photo: ""}, msg: "IC8BNR: F4MAJ SNR -08",
+            rows: {grid: "JN70BQ (carnet)", dist: "952 km", az: "143°", snr: "-8 dB", band: "40m", heard: "",
+                   last: "à l'instant", worked: "non", qsl: "LoTW · eQSL"}},
+    journal: [{when: "18/10 07:05", call: "HA5IZ", band: "40m", sent: "-10", recv: "-08", grid: "JN97", dist: "760 km"}],
+    solar: {sfi: "132", a: "6", k: "2", spots: "87", xray: "C2.4", muf: "NoRpt", updated: "18 Oct 2026 0711 GMT"},
+  });
+}
+</script>
+</body>
+</html>
