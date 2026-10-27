@@ -4,6 +4,8 @@
 [![Téléchargements](https://img.shields.io/github/downloads/LesF4/js8-carte/total?label=t%C3%A9l%C3%A9chargements&color=f9a825)](https://github.com/LesF4/js8-carte/releases)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
+![QSO en cours avec K2YF : trait animé entre les deux stations, fiche QRZ.com dans la bande du bas](docs/qso-en-cours.webp)
+
 Petite carte légère des stations **JS8Call** (Windows, Python 3 ; interface HTML + Leaflet dans une fenêtre
 Edge WebView2 via pywebview) :
 
@@ -14,6 +16,17 @@ Edge WebView2 via pywebview) :
 - **Activité en direct** (heure, type, indicatif, SNR, bande, locator, distance) et **Journal QSO** ;
 - conditions solaires (hamqsl.com) ;
 - filtres : durée (15 min à 4 h) et bande.
+
+## En images
+
+**Une station lance appel (CQ)** : choisie dans JS8Call, elle passe au premier plan avec sa fiche QRZ.com
+(nom, ville, QSL) et la distance depuis ta station.
+
+![Appel CQ de WB8PLB sélectionné, avec sa fiche QRZ.com](docs/appel-cq-fiche-qrz.webp)
+
+**Vue d'ensemble** : toutes les stations entendues depuis l'ouverture, ta station représentée par la maison.
+
+![Vue du monde avec les stations JS8 entendues sur 40 m](docs/vue-monde.webp)
 
 ## Remerciements
 
