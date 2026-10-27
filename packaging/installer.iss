@@ -3,7 +3,7 @@
 ; Prérequis    : packaging\dist\JS8Carte\ (produit par PyInstaller via build.py).
 
 #ifndef AppVersion
-  #define AppVersion "0.8.3"
+  #define AppVersion "0.8.4"
 #endif
 #define AppName      "JS8Carte"
 #define AppFullName  "JS8 Carte"

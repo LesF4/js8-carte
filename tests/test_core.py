@@ -7,6 +7,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from js8carte import core  # noqa: E402
 
 
+class UpdateTests(unittest.TestCase):
+    def test_is_newer(self):
+        self.assertTrue(core.is_newer("v0.9.0", "0.8.3"))
+        self.assertTrue(core.is_newer("0.10.0", "0.9.9"))      # 10 > 9, pas un tri alphabétique
+        self.assertFalse(core.is_newer("v0.8.3", "0.8.3"))
+        self.assertFalse(core.is_newer("0.8.2", "0.8.3"))
+        self.assertFalse(core.is_newer("", "0.8.3"))
+        self.assertFalse(core.is_newer("latest", "0.8.3"))
+
+
 class GeoTests(unittest.TestCase):
     def test_grid_to_latlon(self):
         lat, lon = core.grid_to_latlon("JN37QS")

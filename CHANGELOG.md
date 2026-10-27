@@ -1,6 +1,6 @@
 # Journal des versions
 
-## 0.8.3 — 27 octobre 2026 (première version publique)
+## 0.8.4 — 27 octobre 2026 (première version publique)
 
 - Carte fluide Leaflet (fonds Sombre, Sombre FR, Clair), zoom progressif.
 - Stations entendues depuis l'ouverture : CQ, balises HB, réponses à ton HB (« T'entend » avec report).
@@ -11,5 +11,6 @@
 - Carnet des locators qui se complète tout seul, journal des QSO, conditions solaires (hamqsl.com).
 - Filtres durée et bande.
 - Installeur Windows (Inno Setup), sans droits administrateur.
+- Alerte au démarrage quand une nouvelle version est publiée (bouton « Télécharger », rien ne s’installe tout seul).
 
 Inspiré du MultiDigi Tracker de Nicolas F4LPS.

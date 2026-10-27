@@ -13,6 +13,7 @@ import shutil
 import sys
 import threading
 import time
+import webbrowser
 from datetime import datetime, timezone
 
 import webview
@@ -117,6 +118,14 @@ class Api:
         a.qrz_asked.clear()
         return True
 
+    def open_download(self):
+        webbrowser.open(core.RELEASES_PAGE)              # adresse fixe : la page ne choisit pas où aller
+        return True
+
+    def dismiss_update(self):
+        self._app.update_version = ""
+        return True
+
 
 class App:
     def __init__(self):
@@ -128,6 +137,7 @@ class App:
         self.focus_call = ""
         self._last_contact = ""       # le contact ne passe au premier plan que lorsqu'il commence
         self.solar = {}
+        self.update_version = ""      # nouvelle version publiée sur GitHub, sinon ""
         self.journal = self._load_journal()
         self.qrz_info, self.qrz_photos, self.qrz_asked, self.qrz_error = {}, {}, set(), ""
         self.qrz_queue = queue.Queue()
@@ -190,6 +200,8 @@ class App:
                 self.connected, self.conn_error = data
             elif kind == "solar":
                 self.solar = data
+            elif kind == "update":
+                self.update_version = data
             elif kind == "qrz":
                 call, fiche = data
                 self.qrz_info[call] = fiche
@@ -248,7 +260,7 @@ class App:
                         "durations": DURATIONS, "bands": [b[2] for b in core.BANDS]},
             "me": list(me) if me else None, "stations": rows, "target": target, "dir": t.contact_dir,
             "focus": self._focus_state(contact, grid), "journal": self._journal_rows(grid),
-            "solar": self.solar,
+            "solar": self.solar, "update": self.update_version,
         }
 
     def _focus_state(self, contact, grid):
@@ -363,6 +375,18 @@ class App:
             except Exception:
                 time.sleep(120)
 
+    def _update_loop(self):
+        """Au démarrage puis une fois par jour : une version plus récente est-elle publiée ?"""
+        time.sleep(5)
+        while True:
+            try:
+                latest = core.fetch_latest_version()
+                if core.is_newer(latest):
+                    self.events.put(("update", latest))
+                time.sleep(86400)
+            except Exception:
+                time.sleep(3600)                           # pas d'Internet ou GitHub injoignable : plus tard
+
     # ------------------------------------------------------------------ boucle et fenêtre
     def _loop(self):
         time.sleep(0.8)
@@ -400,6 +424,7 @@ class App:
         self.txlog.start()
         threading.Thread(target=self._qrz_loop, daemon=True).start()
         threading.Thread(target=self._solar_loop, daemon=True).start()
+        threading.Thread(target=self._update_loop, daemon=True).start()
         w, h, x, y = self._geometry()
         self.window = webview.create_window("%s %s" % (core.APP_NAME, core.APP_VERSION),
                                             url=os.path.join(web_dir(), "index.html"), js_api=Api(self),

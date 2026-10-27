@@ -18,7 +18,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 APP_NAME = "JS8 Carte"
-APP_VERSION = "0.8.3"
+APP_VERSION = "0.8.4"
 
 DEFAULTS = {
     "js8_host": "127.0.0.1",
@@ -465,6 +465,32 @@ def fetch_solar(timeout=10):
     req = urllib.request.Request(SOLAR_URL, headers={"User-Agent": "%s/%s" % (APP_NAME, APP_VERSION)})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return parse_solar(r.read().decode("utf-8", "replace"))
+
+
+# --------------------------------------------------------------------------- nouvelle version
+
+RELEASES_API = "https://api.github.com/repos/LesF4/js8-carte/releases/latest"
+RELEASES_PAGE = "https://github.com/LesF4/js8-carte/releases/latest"
+
+
+def version_tuple(v):
+    """« v0.10.2 » -> (0, 10, 2) ; ce qui n'est pas un nombre est ignoré."""
+    return tuple(int(n) for n in re.findall(r"\d+", str(v or ""))[:4])
+
+
+def is_newer(latest, current=APP_VERSION):
+    return bool(version_tuple(latest)) and version_tuple(latest) > version_tuple(current)
+
+
+def fetch_latest_version(timeout=10):
+    """Dernière version publiée sur GitHub (une seule requête, rien n'est envoyé) -> « 0.9.0 » ou ""."""
+    req = urllib.request.Request(RELEASES_API, headers={"User-Agent": "%s/%s" % (APP_NAME, APP_VERSION),
+                                                        "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        data = json.loads(r.read().decode("utf-8", "replace"))
+    if data.get("draft") or data.get("prerelease"):
+        return ""
+    return str(data.get("tag_name") or "").lstrip("vV")
 
 
 # --------------------------------------------------------------------------- client JS8Call

@@ -26,6 +26,13 @@
   #me { color: var(--me); font-weight: 700; font-size: 14px; }
   #freq { font-size: 14px; }
   header .spacer { flex: 1; }
+  #upd { display: flex; align-items: center; gap: 2px; background: #3b2f0b; border-radius: 8px; }
+  #upd[hidden] { display: none; }
+  #upd button { background: transparent; border: 0; color: var(--me); cursor: pointer; font: inherit; padding: 6px 10px;
+                white-space: nowrap; }
+  #upd #updgo { font-weight: 600; }
+  #upd button:hover { background: #ffffff14; border-radius: 8px; }
+  #upd #updx { color: var(--dim); padding: 6px 9px; }
   label.field { color: var(--dim); display: flex; align-items: center; gap: 6px; }
   select { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 7px;
            padding: 5px 8px; font: inherit; }
@@ -154,6 +161,10 @@
   <h1>JS8 Carte</h1>
   <span id="me"></span>
   <span id="freq"></span>
+  <div id="upd" role="status" hidden>
+    <button id="updgo" title="Ouvre la page de téléchargement dans ton navigateur"></button>
+    <button id="updx" aria-label="Masquer jusqu'à demain" title="Masquer jusqu'à demain">×</button>
+  </div>
   <span class="spacer"></span>
   <label class="field">Depuis <select id="fmin"></select></label>
   <label class="field">Bande <select id="fband"></select></label>
@@ -443,6 +454,9 @@ $("sform").onsubmit = async e => {
   $("settings").close();
 };
 
+$("updgo").onclick = () => window.pywebview && window.pywebview.api.open_download();
+$("updx").onclick = () => { $("upd").hidden = true; window.pywebview && window.pywebview.api.dismiss_update(); };
+
 /* ---------- mise à jour reçue de Python */
 window.update = function (s) {
   state = s;
@@ -454,6 +468,8 @@ window.update = function (s) {
   const sol = s.solar || {};
   for (const k of ["sfi", "a", "k", "spots", "xray", "muf"]) $("s-" + k).textContent = sol[k] || "…";
   $("s-upd").textContent = sol.updated ? "Actualisé : " + sol.updated : "";
+  $("upd").hidden = !s.update;
+  if (s.update) $("updgo").textContent = "Version " + s.update + " disponible · Télécharger";
   drawFilters(s.filters);
   drawMap(s); drawFocus(s.focus); drawTables(s);
 };
@@ -482,6 +498,7 @@ if (location.search.includes("demo")) {
                    last: "à l'instant", worked: "non", qsl: "LoTW · eQSL"}},
     journal: [{when: "18/10 07:05", call: "HA5IZ", band: "40m", sent: "-10", recv: "-08", grid: "JN97", dist: "760 km"}],
     solar: {sfi: "132", a: "6", k: "2", spots: "87", xray: "C2.4", muf: "NoRpt", updated: "18 Oct 2026 0711 GMT"},
+    update: location.search.includes("maj") ? "0.9.0" : "",
   });
 }
 </script>
