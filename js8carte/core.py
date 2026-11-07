@@ -18,7 +18,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 APP_NAME = "JS8 Carte"
-APP_VERSION = "0.8.4"
+APP_VERSION = "0.8.5"
 
 DEFAULTS = {
     "js8_host": "127.0.0.1",
@@ -65,6 +65,43 @@ def save_config(cfg):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
     os.replace(tmp, path)
+
+
+# --------------------------------------------------------------------------- position de la fenêtre
+
+DEFAULT_SIZE = (1500, 900)
+MIN_SIZE = (1000, 640)
+
+
+def window_geometry(text, on_screen=None):
+    """Lit la position mémorisée "LxH+X+Y" et renvoie (largeur, hauteur, x, y).
+
+    x et y valent None (= fenêtre centrée sur l'écran principal) quand la position est absente,
+    illisible, ou ne tombe sur aucun écran. Cas réel : une fenêtre fermée alors qu'elle était
+    réduite est notée à -32000,-32000 par Windows, et se rouvrait ensuite hors de tout écran.
+    on_screen(x, y, l, h) dit si la fenêtre serait visible ; None = pas de vérification possible.
+    """
+    try:
+        size, x, y = str(text or "").split("+")
+        w, h = (int(v) for v in size.split("x"))
+        x, y = int(x), int(y)
+    except ValueError:
+        return DEFAULT_SIZE[0], DEFAULT_SIZE[1], None, None
+    if w < MIN_SIZE[0] // 2 or h < MIN_SIZE[1] // 2 or w > 10000 or h > 10000:
+        w, h = DEFAULT_SIZE                                # taille absurde (fenêtre réduite)
+    w, h = max(w, MIN_SIZE[0]), max(h, MIN_SIZE[1])
+    if x <= -10000 or y <= -10000 or (on_screen is not None and not on_screen(x, y, w, h)):
+        return w, h, None, None
+    return w, h, x, y
+
+
+def geometry_worth_saving(w, h, x, y):
+    """Faut-il mémoriser cette position à la fermeture ? Non si la fenêtre était réduite."""
+    try:
+        w, h, x, y = int(w), int(h), int(x), int(y)
+    except (TypeError, ValueError):
+        return False
+    return w >= MIN_SIZE[0] // 2 and h >= MIN_SIZE[1] // 2 and x > -10000 and y > -10000
 
 
 # --------------------------------------------------------------------------- géographie

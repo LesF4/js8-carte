@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.8.5 — 30 octobre 2026
+
+- Une seule copie de JS8 Carte à la fois : un nouveau clic sur le raccourci remet la fenêtre déjà
+  ouverte au premier plan (et sur l'écran principal si elle était hors écran), au lieu de lancer
+  une copie de plus. Les copies en trop prenaient les connexions de JS8Call et affichaient
+  « JS8Call non joignable ».
+- La fenêtre ne s'ouvre plus hors de l'écran : une position mémorisée invalide (fenêtre fermée
+  alors qu'elle était réduite, écran débranché) est ignorée et la fenêtre s'ouvre au centre.
+
 ## 0.8.4 — 27 octobre 2026 (première version publique)
 
 - Carte fluide Leaflet (fonds Sombre, Sombre FR, Clair), zoom progressif.

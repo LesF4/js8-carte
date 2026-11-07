@@ -17,6 +17,34 @@ class UpdateTests(unittest.TestCase):
         self.assertFalse(core.is_newer("latest", "0.8.3"))
 
 
+class WindowGeometryTests(unittest.TestCase):
+    def test_normal_position_kept(self):
+        self.assertEqual(core.window_geometry("1600x950+120+80"), (1600, 950, 120, 80))
+
+    def test_minimized_position_ignored(self):
+        # fenêtre fermée réduite : Windows note -32000,-32000 -> elle doit revenir au centre
+        w, h, x, y = core.window_geometry("160x28+-32000+-32000")
+        self.assertEqual((x, y), (None, None))
+        self.assertEqual((w, h), core.DEFAULT_SIZE)
+
+    def test_off_screen_position_centered(self):
+        never = lambda x, y, w, h: False                   # écran débranché depuis la dernière fois
+        self.assertEqual(core.window_geometry("1500x900+5000+200", on_screen=never)[2:], (None, None))
+
+    def test_empty_or_broken(self):
+        for txt in ("", None, "n'importe quoi", "1500x900+10"):
+            self.assertEqual(core.window_geometry(txt), (1500, 900, None, None), txt)
+
+    def test_minimum_size(self):
+        self.assertEqual(core.window_geometry("800x600+0+0")[:2], core.MIN_SIZE)
+
+    def test_worth_saving(self):
+        self.assertTrue(core.geometry_worth_saving(1500, 900, 100, 50))
+        self.assertTrue(core.geometry_worth_saving(1500, 900, -1500, 0))     # écran à gauche du principal
+        self.assertFalse(core.geometry_worth_saving(160, 28, -32000, -32000))
+        self.assertFalse(core.geometry_worth_saving(None, 900, 0, 0))
+
+
 class GeoTests(unittest.TestCase):
     def test_grid_to_latlon(self):
         lat, lon = core.grid_to_latlon("JN37QS")

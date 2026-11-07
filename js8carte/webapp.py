@@ -5,10 +5,12 @@ seconde (window.update) ; la page appelle l'objet Api pour les clics, les filtre
 """
 
 import base64
+import ctypes
 import io
 import json
 import os
 import queue
+import re
 import shutil
 import sys
 import threading
@@ -49,6 +51,98 @@ def clear_cache_on_update(storage):
             f.write(core.APP_VERSION)
     except OSError:
         pass
+
+
+# --------------------------------------------------------------------------- Windows : une seule copie, fenêtre visible
+# Avant 0.8.5 : chaque clic sur le raccourci lançait une copie de plus (et JS8Call n'accepte que
+# 2 connexions TCP : les copies en trop affichaient « JS8Call non joignable »), et une fenêtre fermée
+# réduite se rouvrait hors de tout écran.
+
+MUTEX_NAME = "Local\\JS8Carte-instance-unique"
+TITLE_RE = re.compile(r"^JS8 Carte \d+\.\d+")       # titre de la fenêtre : « JS8 Carte 0.8.5 »
+_mutex = None                                         # gardé ouvert tant que l'appli tourne
+
+
+class _RECT(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+def _user32():
+    if sys.platform != "win32":
+        return None
+    try:
+        return ctypes.WinDLL("user32", use_last_error=True)
+    except OSError:
+        return None
+
+
+def already_running():
+    """True si une autre copie de JS8 Carte tourne déjà (verrou Windows nommé)."""
+    global _mutex
+    if sys.platform != "win32":
+        return False
+    try:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateMutexW.restype = ctypes.c_void_p
+        _mutex = k32.CreateMutexW(None, False, MUTEX_NAME)
+        return ctypes.get_last_error() == 183              # ERROR_ALREADY_EXISTS
+    except (OSError, AttributeError):
+        return False
+
+
+def _rect_on_screen(u32, left, top, right, bottom):
+    """La barre de titre (bande du haut, hors bords) touche-t-elle un écran ?"""
+    r = _RECT(left + 40, top, max(left + 41, right - 40), top + 30)
+    u32.MonitorFromRect.restype = ctypes.c_void_p
+    return bool(u32.MonitorFromRect(ctypes.byref(r), 0))  # 0 = MONITOR_DEFAULTTONULL
+
+
+def on_screen(x, y, w, h):
+    """Pour core.window_geometry : la fenêtre serait-elle visible à cette position ?"""
+    u32 = _user32()
+    if u32 is None:
+        return True
+    try:
+        return _rect_on_screen(u32, x, y, x + w, y + h)
+    except (OSError, AttributeError):
+        return True
+
+
+def bring_existing_to_front():
+    """Remet au premier plan (et sur l'écran principal si besoin) la fenêtre de la copie déjà lancée."""
+    u32 = _user32()
+    if u32 is None:
+        return False
+    found = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    def visit(hwnd, _):
+        buf = ctypes.create_unicode_buffer(256)
+        u32.GetWindowTextW(ctypes.c_void_p(hwnd), buf, 256)
+        if TITLE_RE.match(buf.value):
+            found.append(hwnd)
+            return False                                   # trouvée : on arrête
+        return True
+
+    try:
+        u32.EnumWindows(visit, None)
+        if not found:
+            return False
+        hwnd = ctypes.c_void_p(found[0])
+        u32.ShowWindow(hwnd, 9 if u32.IsIconic(hwnd) else 5)   # 9 = SW_RESTORE, 5 = SW_SHOW
+        r = _RECT()
+        u32.GetWindowRect(hwnd, ctypes.byref(r))
+        if not _rect_on_screen(u32, r.left, r.top, r.right, r.bottom):
+            w = min(max(r.right - r.left, core.MIN_SIZE[0]), u32.GetSystemMetrics(0))
+            h = min(max(r.bottom - r.top, core.MIN_SIZE[1]), u32.GetSystemMetrics(1))
+            x = (u32.GetSystemMetrics(0) - w) // 2         # centre de l'écran principal
+            y = (u32.GetSystemMetrics(1) - h) // 2
+            u32.SetWindowPos(hwnd, None, x, y, w, h, 0x0004 | 0x0040)   # SWP_NOZORDER | SWP_SHOWWINDOW
+        u32.SetForegroundWindow(hwnd)
+        return True
+    except (OSError, AttributeError):
+        return False
 
 
 def hhmm(ts):
@@ -405,19 +499,16 @@ class App:
     def _on_closing(self):
         try:
             w = self.window
-            self.cfg["geometry"] = "%dx%d+%d+%d" % (w.width, w.height, w.x, w.y)
+            if core.geometry_worth_saving(w.width, w.height, w.x, w.y):   # pas si la fenêtre est réduite
+                self.cfg["geometry"] = "%dx%d+%d+%d" % (w.width, w.height, w.x, w.y)
         except Exception:
             pass
         self.save_config()
         self.book.save()
 
     def _geometry(self):
-        try:
-            size, x, y = self.cfg.get("geometry", "").split("+")
-            w, h = size.split("x")
-            return int(w), int(h), int(x), int(y)
-        except ValueError:
-            return 1500, 900, None, None
+        """Position mémorisée, ou fenêtre centrée si elle tomberait hors de tout écran."""
+        return core.window_geometry(self.cfg.get("geometry", ""), on_screen=on_screen)
 
     def run(self, hidden=False):
         self.client.start()
@@ -428,7 +519,7 @@ class App:
         w, h, x, y = self._geometry()
         self.window = webview.create_window("%s %s" % (core.APP_NAME, core.APP_VERSION),
                                             url=os.path.join(web_dir(), "index.html"), js_api=Api(self),
-                                            width=max(w, 1000), height=max(h, 640), x=x, y=y, min_size=(1000, 640),
+                                            width=w, height=h, x=x, y=y, min_size=core.MIN_SIZE,
                                             background_color="#0a0f1a", hidden=hidden)
         self.window.events.closing += self._on_closing
         threading.Thread(target=self._loop, daemon=True).start()
@@ -441,4 +532,7 @@ class App:
 
 
 def main():
+    if already_running():
+        bring_existing_to_front()          # 2e clic sur le raccourci : on montre la fenêtre existante
+        return
     App().run()
